@@ -50,3 +50,4 @@ jobs:
                   JIRA_PROJECT: ${{ secrets.JIRA_PROJECT }}
                   COMMIT_SHA: ${{ github.sha }}
                   AUTHOR: ${{ github.actor }}
+                  JIRA_ASSIGNEE_ID: ${{ secrets.JIRA_ASSIGNEE_ID }}
