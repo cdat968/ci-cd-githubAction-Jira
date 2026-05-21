@@ -50,11 +50,66 @@ async function createTicket(test) {
                 // ...(JIRA_ASSIGNEE_ID
                 //     ? { assignee: { accountId: JIRA_ASSIGNEE_ID } }
                 //     : {}),
-                description:
-                    `*Commit:* ${COMMIT_SHA}\n` +
-                    `*Author:* ${AUTHOR}\n\n` +
-                    `*Test failed:*\n${test.fullName}\n\n` +
-                    `*Error:*\n{code}${test.failureMessages.join("\n")}{code}`,
+                description: {
+                    type: "doc",
+                    version: 1,
+                    content: [
+                        {
+                            type: "paragraph",
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `Commit: ${COMMIT_SHA}`,
+                                    marks: [{ type: "strong" }],
+                                },
+                            ],
+                        },
+                        {
+                            type: "paragraph",
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `Author: ${AUTHOR}`,
+                                    marks: [{ type: "strong" }],
+                                },
+                            ],
+                        },
+                        {
+                            type: "paragraph",
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `Test failed: ${test.fullName}`,
+                                    marks: [{ type: "strong" }],
+                                },
+                            ],
+                        },
+                        {
+                            type: "paragraph",
+                            content: [
+                                {
+                                    type: "text",
+                                    text: "Error:",
+                                    marks: [{ type: "strong" }],
+                                },
+                            ],
+                        },
+                        {
+                            type: "codeBlock",
+                            attrs: {
+                                language: "text",
+                            },
+                            content: [
+                                {
+                                    type: "text",
+                                    text:
+                                        test.failureMessages.join("\n") ||
+                                        "No failure message",
+                                },
+                            ],
+                        },
+                    ],
+                },
                 priority: { name: "High" },
                 labels: ["auto-created", "ci-failure"],
             },
