@@ -1,0 +1,48 @@
+# .github/workflows/test.yml
+
+name: Run Tests & Create Jira Ticket on Failure
+
+on:
+    push:
+        branches: [main, develop] # chạy khi push lên 2 branch này
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+
+        steps:
+            # Bước 1: Kéo code về máy chủ GitHub
+            - name: Checkout code
+              uses: actions/checkout@v3
+
+            # Bước 2: Cài Node.js
+            - name: Setup Node.js
+              uses: actions/setup-node@v3
+              with:
+                  node-version: "18"
+                  cache: "npm" # cache để lần sau cài nhanh hơn
+
+            # Bước 3: Cài dependencies
+            - name: Install dependencies
+              run: npm ci
+              working-directory: emp-kiosk-master/hr-web
+
+            # Bước 4: Chạy test — tạo file jest-results.json
+            - name: Run tests
+              id: run_tests
+              run: npm run test:ci
+              working-directory: emp-kiosk-master/hr-web
+              continue-on-error: true # ← không dừng pipeline khi test fail
+
+            # Bước 5: Tạo Jira ticket nếu test fail
+            - name: Create Jira ticket if tests failed
+              if: steps.run_tests.outcome == 'failure' # ← chỉ chạy khi fail
+              run: node scripts/create-jira-ticket.js
+              working-directory: emp-kiosk-master/hr-web
+              env:
+                  JIRA_URL: ${{ secrets.JIRA_URL }}
+                  JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+                  JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+                  JIRA_PROJECT: ${{ secrets.JIRA_PROJECT }}
+                  COMMIT_SHA: ${{ github.sha }}
+                  AUTHOR: ${{ github.actor }}
