@@ -14,6 +14,7 @@ const JIRA_TOKEN = process.env.JIRA_TOKEN;
 const JIRA_PROJECT = process.env.JIRA_PROJECT || "DEMO";
 const COMMIT_SHA = process.env.COMMIT_SHA || "unknown";
 const AUTHOR = process.env.AUTHOR || "unknown";
+const JIRA_ASSIGNEE_ID = process.env.JIRA_ASSIGNEE_ID || "";
 
 // Đọc file kết quả test
 const reportPath = path.join(__dirname, "../reports/jest-results.json");
@@ -46,6 +47,7 @@ async function createTicket(test) {
                 project: { key: JIRA_PROJECT },
                 issuetype: { name: "Bug" },
                 summary: `[AUTO] Test fail: ${test.fullName}`,
+                assignee: { accountId: JIRA_ASSIGNEE_ID },
                 description:
                     `*Commit:* ${COMMIT_SHA}\n` +
                     `*Author:* ${AUTHOR}\n\n` +
