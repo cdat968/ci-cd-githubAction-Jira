@@ -34,6 +34,9 @@ jobs:
               run: npm run test:ci
               working-directory: emp-kiosk-master/hr-web
               continue-on-error: true # ← không dừng pipeline khi test fail
+              env:
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
             # Bước 5: Tạo Jira ticket nếu test fail
             - name: Create Jira ticket if tests failed
@@ -47,5 +50,3 @@ jobs:
                   JIRA_PROJECT: ${{ secrets.JIRA_PROJECT }}
                   COMMIT_SHA: ${{ github.sha }}
                   AUTHOR: ${{ github.actor }}
-                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-                  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
