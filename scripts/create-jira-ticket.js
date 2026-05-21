@@ -47,7 +47,7 @@ async function createTicket(test) {
                 project: { key: JIRA_PROJECT },
                 issuetype: { name: "Bug" },
                 summary: `[AUTO] Test fail: ${test.fullName}`,
-                assignee: { accountId: JIRA_ASSIGNEE_ID },
+                ...(JIRA_ASSIGNEE_ID ? { assignee: { accountId: JIRA_ASSIGNEE_ID } } : {}),
                 description:
                     `*Commit:* ${COMMIT_SHA}\n` +
                     `*Author:* ${AUTHOR}\n\n` +
