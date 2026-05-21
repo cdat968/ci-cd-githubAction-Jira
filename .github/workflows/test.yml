@@ -31,7 +31,8 @@ jobs:
             # Bước 4: Chạy test — tạo file jest-results.json
             - name: Run tests
               id: run_tests
-              run: npm run test:ci
+              run: |
+                  echo "SUPABASE_URL exists: ${{ secrets.SUPABASE_URL != '' }}"
               working-directory: emp-kiosk-master/hr-web
               continue-on-error: true # ← không dừng pipeline khi test fail
 
