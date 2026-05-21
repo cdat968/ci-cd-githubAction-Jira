@@ -21,6 +21,7 @@ jobs:
               with:
                   node-version: "18"
                   cache: "npm" # cache để lần sau cài nhanh hơn
+                  cache-dependency-path: emp-kiosk-master/hr-web/package-lock.json
 
             # Bước 3: Cài dependencies
             - name: Install dependencies
