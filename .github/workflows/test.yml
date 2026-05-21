@@ -47,3 +47,5 @@ jobs:
                   JIRA_PROJECT: ${{ secrets.JIRA_PROJECT }}
                   COMMIT_SHA: ${{ github.sha }}
                   AUTHOR: ${{ github.actor }}
+                  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
