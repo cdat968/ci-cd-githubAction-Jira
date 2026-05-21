@@ -34,7 +34,7 @@ console.log(`Tìm thấy ${failedTests.length} test fail → tạo Jira tickets.
 
 // Tạo ticket cho 1 test fail
 async function createTicket(test) {
-    const response = await fetch(`${JIRA_URL}/rest/api/2/issue`, {
+    const response = await fetch(`${JIRA_URL}/rest/api/3/issue`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -47,7 +47,9 @@ async function createTicket(test) {
                 project: { key: JIRA_PROJECT },
                 issuetype: { name: "Bug" },
                 summary: `[AUTO] Test fail: ${test.fullName}`,
-                ...(JIRA_ASSIGNEE_ID ? { assignee: { accountId: JIRA_ASSIGNEE_ID } } : {}),
+                // ...(JIRA_ASSIGNEE_ID
+                //     ? { assignee: { accountId: JIRA_ASSIGNEE_ID } }
+                //     : {}),
                 description:
                     `*Commit:* ${COMMIT_SHA}\n` +
                     `*Author:* ${AUTHOR}\n\n` +
@@ -63,9 +65,45 @@ async function createTicket(test) {
 
     if (response.ok) {
         console.log(`✅ Ticket tạo thành công: ${data.key}`);
+        await assignIssue(data.key);
     } else {
         console.error(`❌ Lỗi tạo ticket: ${JSON.stringify(data)}`);
     }
+}
+
+async function assignIssue(issueKey) {
+    if (!JIRA_ASSIGNEE_ID) {
+        console.log("Không có JIRA_ASSIGNEE_ID → bỏ qua assign");
+        return;
+    }
+
+    const response = await fetch(
+        `${JIRA_URL}/rest/api/3/issue/${issueKey}/assignee`,
+        {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization:
+                    "Basic " +
+                    Buffer.from(`${JIRA_EMAIL}:${JIRA_TOKEN}`).toString(
+                        "base64",
+                    ),
+            },
+            body: JSON.stringify({
+                accountId: JIRA_ASSIGNEE_ID,
+            }),
+        },
+    );
+
+    if (response.status === 204) {
+        console.log(`✅ Assign ticket thành công: ${issueKey}`);
+        return;
+    }
+
+    const text = await response.text();
+    console.warn(
+        `⚠️ Assign ticket thất bại: ${issueKey} - ${response.status} ${text}`,
+    );
 }
 
 // Chạy tạo ticket cho tất cả test fail
