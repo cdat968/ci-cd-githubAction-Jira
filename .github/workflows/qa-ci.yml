@@ -100,7 +100,7 @@ jobs:
         env:
           ODOO_URL: ${{ secrets.ODOO_URL }}
           QA_CI_KEY: ${{ secrets.QA_CI_KEY }}
-          CI_BRANCH: ${{ github.ref_name }}
+          CI_BRANCH: ${{ github.head_ref || github.ref_name }}
           CI_SHA: ${{ github.sha }}
           CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GITHUB_ACTOR: ${{ github.actor }}
@@ -185,7 +185,7 @@ jobs:
         env:
           ODOO_URL: ${{ secrets.ODOO_URL }}
           QA_CI_KEY: ${{ secrets.QA_CI_KEY }}
-          CI_BRANCH: ${{ github.ref_name }}
+          CI_BRANCH: ${{ github.head_ref || github.ref_name }}
           CI_SHA: ${{ github.sha }}
           CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GITHUB_REPOSITORY: ${{ github.repository }}
