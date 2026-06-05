@@ -100,7 +100,7 @@ jobs:
         env:
           ODOO_URL: ${{ secrets.ODOO_URL }}
           QA_CI_KEY: ${{ secrets.QA_CI_KEY }}
-          CI_BRANCH: ${{ github.ref_name }}
+          CI_BRANCH: ${{ github.head_ref || github.ref_name }}
           CI_SHA: ${{ github.sha }}
           CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GITHUB_ACTOR: ${{ github.actor }}
@@ -171,4 +171,38 @@ jobs:
                   timeout=30,
               )
               print(f"Bug created: {resp.json()}")
+          PYEOF
+
+  # ── Job 4: Auto-close fixed bugs in Odoo ─────────────────────
+  close-bugs:
+    name: Close Fixed Bugs
+    runs-on: ubuntu-latest
+    needs: [lint, build]
+    if: ${{ needs.lint.result == 'success' && needs.build.result == 'success' }}
+
+    steps:
+      - name: Notify Odoo CI passed
+        env:
+          ODOO_URL: ${{ secrets.ODOO_URL }}
+          QA_CI_KEY: ${{ secrets.QA_CI_KEY }}
+          CI_BRANCH: ${{ github.head_ref || github.ref_name }}
+          CI_SHA: ${{ github.sha }}
+          CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          pip install requests
+          python3 - << 'PYEOF'
+          import os, requests
+          resp = requests.post(
+              os.environ['ODOO_URL'].rstrip('/') + '/qa/ci/pass',
+              json={
+                  'github_repo': os.environ['GITHUB_REPOSITORY'],
+                  'ci_branch':   os.environ['CI_BRANCH'],
+                  'ci_commit_sha': os.environ['CI_SHA'],
+                  'ci_run_url':  os.environ['CI_RUN_URL'],
+              },
+              headers={'X-CI-Key': os.environ['QA_CI_KEY']},
+              timeout=30,
+          )
+          print(f"Closed: {resp.json()}")
           PYEOF
