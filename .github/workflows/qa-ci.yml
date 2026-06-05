@@ -29,7 +29,7 @@ jobs:
         id: lint
         run: |
           set +e
-          npm run lint -- --format json 2>/dev/null > lint-results.json
+          npm run lint --silent -- --format json --output-file lint-results.json
           LINT_EXIT=$?
           set -e
 
