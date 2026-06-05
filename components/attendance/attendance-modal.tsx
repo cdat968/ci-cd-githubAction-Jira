@@ -46,6 +46,7 @@ export default function AttendanceModal({
   // Populate form when editing
   useEffect(() => {
     if (editRow) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEmployeeId(editRow.employee_id)
       setWorkDate(editRow.work_date)
       setCheckIn(
