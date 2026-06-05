@@ -7,7 +7,9 @@ on:
     branches: ['**']
 
 jobs:
-  build-and-lint:
+  # ── Job 1: ESLint ─────────────────────────────────────────────
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
 
     steps:
@@ -23,18 +25,78 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
+      - name: Run ESLint
         id: lint
-        run: npm run lint
-        continue-on-error: true
+        run: |
+          set +e
+          npm run lint -- --format json 2>/dev/null > lint-results.json
+          LINT_EXIT=$?
+          set -e
+
+          # Print human-readable summary from JSON
+          if [ -f lint-results.json ] && [ $LINT_EXIT -ne 0 ]; then
+            node -e "
+              const results = require('./lint-results.json');
+              let total = 0;
+              results.forEach(f => {
+                f.messages.forEach(m => {
+                  if (m.severity >= 2) {
+                    console.log(f.filePath + ':' + m.line + ':' + m.column + '  error  ' + m.message + '  ' + (m.ruleId || ''));
+                    total++;
+                  }
+                });
+              });
+              console.log('\n' + total + ' error(s) found');
+            " || true
+          fi
+
+          exit $LINT_EXIT
+
+      - name: Upload lint results
+        if: always() && steps.lint.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-results
+          path: lint-results.json
+          retention-days: 1
+
+  # ── Job 2: Next.js Build ──────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Build
-        id: build
         run: npm run build
+
+  # ── Job 3: Report failures to Odoo ───────────────────────────
+  report:
+    name: Report to Odoo
+    runs-on: ubuntu-latest
+    needs: [lint, build]
+    if: ${{ always() && (needs.lint.result == 'failure' || needs.build.result == 'failure') }}
+
+    steps:
+      - name: Download lint results
+        if: needs.lint.result == 'failure'
+        uses: actions/download-artifact@v4
+        with:
+          name: lint-results
         continue-on-error: true
 
       - name: Report failures to Odoo
-        if: steps.lint.outcome == 'failure' || steps.build.outcome == 'failure'
         env:
           ODOO_URL: ${{ secrets.ODOO_URL }}
           QA_CI_KEY: ${{ secrets.QA_CI_KEY }}
@@ -43,29 +105,64 @@ jobs:
           CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          LINT_FAILED: ${{ steps.lint.outcome == 'failure' && 'true' || 'false' }}
-          BUILD_FAILED: ${{ steps.build.outcome == 'failure' && 'true' || 'false' }}
+          LINT_FAILED: ${{ needs.lint.result == 'failure' && 'true' || 'false' }}
+          BUILD_FAILED: ${{ needs.build.result == 'failure' && 'true' || 'false' }}
         run: |
           pip install requests
           python3 - << 'PYEOF'
-          import os, requests
+          import os, json, requests
+
           odoo_url = os.environ['ODOO_URL'].rstrip('/')
           ci_key   = os.environ['QA_CI_KEY']
+
           failures = []
+
+          # Parse structured ESLint errors
           if os.environ.get('LINT_FAILED') == 'true':
-              failures.append('ESLint')
+              lint_errors = []
+              try:
+                  with open('lint-results.json') as f:
+                      lint_data = json.load(f)
+                  for file_result in lint_data:
+                      fp = file_result.get('filePath', '')
+                      # Strip runner prefix for cleaner path
+                      fp = fp.split('/ci-cd-githubAction-Jira/')[-1] if '/ci-cd-githubAction-Jira/' in fp else fp
+                      for msg in file_result.get('messages', []):
+                          if msg.get('severity', 0) >= 2:
+                              lint_errors.append({
+                                  'file_path': fp,
+                                  'line':      msg.get('line', 0),
+                                  'column':    msg.get('column', 0),
+                                  'message':   msg.get('message', ''),
+                                  'rule':      msg.get('ruleId', ''),
+                              })
+              except Exception as e:
+                  print(f"Warning: could not parse lint-results.json: {e}")
+
+              failures.append({
+                  'title':           '[CI] ESLint failed on hr-web',
+                  'ci_failure_step': 'ESLint',
+                  'ci_errors':       lint_errors,
+              })
+
           if os.environ.get('BUILD_FAILED') == 'true':
-              failures.append('Next.js Build')
-          for step in failures:
+              failures.append({
+                  'title':           '[CI] Next.js Build failed on hr-web',
+                  'ci_failure_step': 'Next.js Build',
+                  'ci_errors':       [],
+              })
+
+          for f in failures:
               payload = {
-                  'title':           f'[CI] {step} failed on hr-web',
-                  'ci_failure_step': step,
+                  'title':           f['title'],
+                  'ci_failure_step': f['ci_failure_step'],
                   'ci_branch':       os.environ.get('CI_BRANCH', ''),
                   'ci_commit_sha':   os.environ.get('CI_SHA', ''),
                   'ci_run_url':      os.environ.get('CI_RUN_URL', ''),
                   'github_actor':    os.environ.get('GITHUB_ACTOR', ''),
                   'github_repo':     os.environ.get('GITHUB_REPOSITORY', ''),
                   'source':          'ci',
+                  'ci_errors':       f['ci_errors'],
               }
               resp = requests.post(
                   f'{odoo_url}/qa/ci/bug',
@@ -75,7 +172,3 @@ jobs:
               )
               print(f"Bug created: {resp.json()}")
           PYEOF
-
-      - name: Fail job if any step failed
-        if: steps.lint.outcome == 'failure' || steps.build.outcome == 'failure'
-        run: exit 1
