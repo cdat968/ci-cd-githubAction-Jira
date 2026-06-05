@@ -1,0 +1,81 @@
+name: HR Web QA CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        id: lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build
+        id: build
+        run: npm run build
+        continue-on-error: true
+
+      - name: Report failures to Odoo
+        if: steps.lint.outcome == 'failure' || steps.build.outcome == 'failure'
+        env:
+          ODOO_URL: ${{ secrets.ODOO_URL }}
+          QA_CI_KEY: ${{ secrets.QA_CI_KEY }}
+          CI_BRANCH: ${{ github.ref_name }}
+          CI_SHA: ${{ github.sha }}
+          CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          LINT_FAILED: ${{ steps.lint.outcome == 'failure' && 'true' || 'false' }}
+          BUILD_FAILED: ${{ steps.build.outcome == 'failure' && 'true' || 'false' }}
+        run: |
+          pip install requests
+          python3 - << 'PYEOF'
+          import os, requests
+          odoo_url = os.environ['ODOO_URL'].rstrip('/')
+          ci_key   = os.environ['QA_CI_KEY']
+          failures = []
+          if os.environ.get('LINT_FAILED') == 'true':
+              failures.append('ESLint')
+          if os.environ.get('BUILD_FAILED') == 'true':
+              failures.append('Next.js Build')
+          for step in failures:
+              payload = {
+                  'title':           f'[CI] {step} failed on hr-web',
+                  'ci_failure_step': step,
+                  'ci_branch':       os.environ.get('CI_BRANCH', ''),
+                  'ci_commit_sha':   os.environ.get('CI_SHA', ''),
+                  'ci_run_url':      os.environ.get('CI_RUN_URL', ''),
+                  'github_actor':    os.environ.get('GITHUB_ACTOR', ''),
+                  'github_repo':     os.environ.get('GITHUB_REPOSITORY', ''),
+                  'source':          'ci',
+              }
+              resp = requests.post(
+                  f'{odoo_url}/qa/ci/bug',
+                  json=payload,
+                  headers={'X-CI-Key': ci_key, 'Content-Type': 'application/json'},
+                  timeout=30,
+              )
+              print(f"Bug created: {resp.json()}")
+          PYEOF
+
+      - name: Fail job if any step failed
+        if: steps.lint.outcome == 'failure' || steps.build.outcome == 'failure'
+        run: exit 1
